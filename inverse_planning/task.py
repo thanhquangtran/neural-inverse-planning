@@ -50,18 +50,21 @@ class GridworldTask:
 def make_default_task(beta: float = 2.0) -> GridworldTask:
     grid = np.array(
         [
-            [0, 0, 0, 0, 0],
-            [0, 1, 1, 0, 1],
-            [0, 0, 0, 0, 0],
-            [0, 1, 0, 1, 0],
-            [0, 1, 0, 1, 0],
+            [0, 0, 0, 0, 1, 0, 0, 0],
+            [0, 1, 1, 0, 1, 0, 1, 0],
+            [0, 0, 0, 0, 0, 0, 1, 0],
+            [1, 1, 0, 1, 1, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 0],
+            [0, 1, 1, 1, 0, 0, 0, 0],
+            [0, 0, 0, 1, 0, 1, 1, 0],
+            [0, 1, 0, 0, 0, 0, 0, 0],
         ],
         dtype=bool,
     )
     task = GridworldTask(
         grid=grid,
-        init_loc=(4, 2),
-        goal_locs=((0, 1), (0, 4), (4, 0)),
+        init_loc=(7, 0),
+        goal_locs=((0, 0), (0, 7), (7, 7)),
         beta=beta,
     )
     task.validate()

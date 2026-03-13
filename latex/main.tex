@@ -3,223 +3,235 @@
 \usepackage[margin=1in]{geometry}
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
-\usepackage{lmodern}
 \usepackage{microtype}
-\usepackage{amsmath, amssymb, amsthm}
-\usepackage{graphicx}
 \usepackage{booktabs}
+\usepackage{graphicx}
 \usepackage{hyperref}
 \usepackage{xcolor}
 \usepackage{enumitem}
+\usepackage{tikz}
+\usetikzlibrary{positioning,arrows.meta}
 
 \hypersetup{
   colorlinks=true,
   linkcolor=blue!60!black,
-  citecolor=blue!60!black,
   urlcolor=blue!60!black
 }
 
-\title{Inverse Planning in a Simple Gridworld\\
-\large Exact Bayesian Inference and RNN-Based Approximations}
-\author{CS6208 Project Report Draft}
-\date{\today}
+\title{CS6208 Progress Report\\
+\large Week 9 Status: Learning to Approximate Inverse Planning in a Simple Gridworld}
+\author{Team Members: Tran Quang Thanh \and Tran Van Khanh Duc}
+\date{March 13, 2026}
 
 \begin{document}
 
 \maketitle
+\small
 
-\begin{abstract}
-This report studies inverse planning in a simple gridworld where an observer
-infers an agent's latent goal from its actions. We use an exact
-approximately-rational planning model as a reference baseline, then evaluate
-recurrent neural network variants that either predict goals directly or
-approximate inverse planning through a goal-conditioned action model.
-\end{abstract}
+\section{Project Status So Far}
+We originally aimed at richer Bayesian inverse planning settings, but the
+instructor feedback and implementation risk pushed us toward a simpler
+gridworld where exact inference is still tractable. This gives us a reliable
+reference model and lets us spend the remaining time on analysis and model
+comparison instead of full belief-space POMDP reimplementation.
 
-\section{Introduction}
-Inverse planning frames intention understanding as Bayesian inference over
-latent mental states \cite{baker2009action, baker2017rational}. Given a model
-of how an approximately rational agent acts toward a goal, an observer can
-invert that model to infer which goal best explains an observed trajectory.
+So far, we have implemented the main pipeline: a deterministic gridworld task,
+an approximately rational agent, exact online goal inference, synthetic dataset
+generation, and three learned approximations: \textit{Action-GRU},
+\textit{Conv-GRU}, and \textit{Goal-Conditioned Policy}. We also assembled a
+working \texttt{demo.ipynb} notebook with qualitative examples, scaling
+experiments, rationality ablations, and held-out comparisons.
 
-This project focuses on a simple fully observed gridworld based on the
-\texttt{inv\_plan\_from\_scratch} task. The main reason for choosing this
-setting is methodological: exact inverse planning remains tractable, allowing us
-to construct a clean baseline and generate reliable supervision for learned
-models. On top of this baseline, we study several RNN-based approximations that
-may be useful when exact inference becomes expensive.
+\section{Task Setting}
+Our current environment is a deterministic $8 \times 8$ gridworld with walls,
+one fixed start state, and three candidate goals. The default start location is
+the lower-left cell $(7,0)$, and the three goals are placed at $(0,0)$,
+$(0,7)$, and $(7,7)$. The agent chooses from five actions: stay, up, down,
+left, and right. Invalid moves do not change the state. For the current exact
+observer and the main notebook experiments, we use a Boltzmann-rational agent
+with $\beta = 2.0$ and typically evaluate trajectories of length 12.
 
-\paragraph{Project contributions.}
-The report is structured around three contributions:
-\begin{enumerate}[leftmargin=1.5em]
-  \item an exact inverse-planning baseline for a simple gridworld;
-  \item a reusable data-generation pipeline that labels trajectories with exact
-  posterior beliefs over goals;
-  \item a comparison of direct goal-prediction and goal-conditioned policy RNN
-  variants.
-\end{enumerate}
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.5\linewidth]{task_overview.png}
+  \caption{Default task used in the current project. Black cells are walls, the
+  dashed square marks the start state $S$, and the three colored diamonds mark
+  goals $G_1$, $G_2$, and $G_3$.}
+\end{figure}
 
-\section{Related Work}
-Bayesian inverse planning and related theory-of-mind models have been used to
-infer goals, beliefs, and other mental states from observed behavior
-\cite{baker2009action, baker2017rational}. Probabilistic programming systems
-such as Gen support flexible implementations of such models while preserving a
-clean separation between model specification and inference \cite{cusumano2018gen}.
+This setting is simple but still produces real ambiguity early in a trajectory.
+At the same time, it is small enough that exact inverse planning over the three
+candidate goals remains tractable, making it a useful reference task.
 
-For more structured planning settings, partially observable models and
-belief-space inference introduce substantial computational challenges
-\cite{kaelbling1998planning}. Recent code resources such as \texttt{memo} and
-LaBToM provide useful implementation references for richer recursive or
-belief-based planning settings. On the function-approximation side, recurrent
-neural networks and convolutional recurrent models offer a natural way to map
-trajectory observations to latent-state predictions \cite{hochreiter1997lstm,
-cho2014gru}. Our project uses these learned models as approximations to exact
-Bayesian inference rather than as replacements for the underlying behavioral
-theory.
+\section{How Is The Data Obtained?}
+All data are generated synthetically from the exact task model. For each
+episode, we sample one latent goal uniformly, roll out a trajectory from the
+fixed start state under the Boltzmann policy for that goal, and then run the
+exact observer on the resulting action sequence.
 
-\section{Problem Setup}
-\subsection{Gridworld Environment}
-The environment is a small deterministic gridworld with walls, a fixed initial
-location, and a discrete set of candidate goals. At each time step, the agent
-chooses among five actions: stay, up, down, left, and right. Invalid moves
-leave the agent in place.
+This gives both the final posterior and the online posterior after each action,
+which are used as supervision targets. Each timestep is encoded as a
+six-channel tensor: walls, agent position, three goal channels, and normalized
+time. The dataset stores positions, action indices, sampled goal, final exact
+posterior, online posterior trace, and goal-conditioned inputs for the policy
+model.
 
-\subsection{Approximately Rational Agent Model}
-We assume that the agent acts approximately rationally with respect to a latent
-goal $g$. Let $Q_g(s, a)$ denote the state-action value of taking action $a$ in
-state $s$ under goal $g$. The agent follows a Boltzmann policy
-\begin{equation}
-P(a_t \mid s_t, g) =
-\frac{\exp(\beta Q_g(s_t, a_t))}
-{\sum_{a' \in \mathcal{A}} \exp(\beta Q_g(s_t, a'))},
-\end{equation}
-where $\beta$ controls how strongly behavior concentrates on high-value
-actions.
+\section{RNNs Design}
+Figure 2 summarizes the input and output structure of the three recurrent
+models.
+\noindent\begin{center}
+\begin{tikzpicture}[
+  font=\scriptsize,
+  x=1cm,
+  y=1cm,
+  box/.style={draw, rounded corners, align=center, minimum width=2.1cm, minimum height=0.95cm},
+  arr/.style={-Latex, thick}
+]
+\node[box, fill=blue!8] (grid1) at (0,5.0) {Grid frame $x_t$};
+\node[box, fill=blue!8, right=0.8cm of grid1] (flat) {Flatten};
+\node[box, fill=green!10, right=0.8cm of flat] (act1) {Prev.\ action\\embed $a_{t-1}$};
+\node[box, fill=orange!10, right=0.8cm of act1] (gru1) {GRU};
+\node[box, fill=red!10, right=0.8cm of gru1] (goal1) {Final goal\\logits};
+\node[box, fill=red!10, below=0.55cm of goal1] (post1) {Posterior\\logits by step};
+\draw[arr] (grid1) -- (flat);
+\draw[arr] (flat) -- (act1);
+\draw[arr] (act1) -- (gru1);
+\draw[arr] (gru1) -- (goal1);
+\draw[arr] (gru1) -- (post1);
+\node[left=0.35cm of grid1] {\textbf{Action-GRU}};
 
-\subsection{Inverse Planning Objective}
-Given an observed action sequence $a_{1:T}$, the observer seeks the posterior
-distribution over goals:
-\begin{equation}
-P(g \mid a_{1:T}) \propto P(g) \prod_{t=1}^{T} P(a_t \mid s_t, g).
-\end{equation}
-Because the environment is deterministic and the goal set is small, this
-posterior can be computed exactly by enumerating over goals.
+\node[box, fill=blue!8] (grid2) at (0,2.3) {Grid frame $x_t$};
+\node[box, fill=blue!8, right=0.8cm of grid2] (conv) {Conv encoder};
+\node[box, fill=green!10, right=0.8cm of conv] (act2) {Prev.\ action\\embed $a_{t-1}$};
+\node[box, fill=orange!10, right=0.8cm of act2] (gru2) {GRU};
+\node[box, fill=red!10, right=0.8cm of gru2] (goal2) {Final goal\\logits};
+\node[box, fill=red!10, below=0.55cm of goal2] (post2) {Posterior\\logits by step};
+\draw[arr] (grid2) -- (conv);
+\draw[arr] (conv) -- (act2);
+\draw[arr] (act2) -- (gru2);
+\draw[arr] (gru2) -- (goal2);
+\draw[arr] (gru2) -- (post2);
+\node[left=0.35cm of grid2] {\textbf{Conv-GRU}};
 
-\section{Exact Inverse-Planning Baseline}
-\subsection{Planning via Shortest Paths}
-In the simple gridworld, action values can be induced from shortest-path
-distances to the goal. This makes planning transparent and inexpensive compared
-with general POMDP belief-space planning.
+\node[box, fill=blue!8] (grid3) at (0,-0.8) {Grid frame $x_t$};
+\node[box, fill=blue!8, right=0.8cm of grid3] (conv2) {Conv encoder};
+\node[box, fill=green!10, above right=0.45cm and 0.8cm of conv2] (goal3) {Goal embed\\$g$};
+\node[box, fill=green!10, below right=0.45cm and 0.8cm of conv2] (act3) {Prev.\ action\\embed $a_{t-1}$};
+\node[box, fill=orange!10, right=2.1cm of conv2] (gru3) {GRU};
+\node[box, fill=red!10, right=0.8cm of gru3] (pol) {Action logits\\$P(a_t|g)$};
+\node[box, fill=purple!10, below=0.55cm of pol] (inv) {Score each goal\\$\rightarrow p(g|a_{1:T})$};
+\draw[arr] (grid3) -- (conv2);
+\draw[arr] (conv2) -- (gru3);
+\draw[arr] (goal3) -- (gru3);
+\draw[arr] (act3) -- (gru3);
+\draw[arr] (gru3) -- (pol);
+\draw[arr] (pol) -- (inv);
+\node[left=0.35cm of grid3] {\textbf{Goal-Cond.\ Policy}};
+\end{tikzpicture}
 
-\subsection{Exact Posterior Inference}
-For each candidate goal, we evaluate the likelihood of the observed action
-sequence under the corresponding Boltzmann policy and normalize across goals.
-This yields an exact posterior over goals at the final time step and also
-supports online posterior updates over time.
+\vspace{0.25em}
+{\footnotesize \textbf{Figure 2.} Input/output structure of the three learned
+recurrent models. Blue boxes denote state inputs, green boxes denote
+discrete-condition embeddings, orange boxes denote recurrent processing, and
+red/purple boxes denote predicted outputs and inversion steps.}
+\end{center}
 
-\subsection{Role as a Reference Model}
-The exact model serves two purposes: it provides a principled baseline for
-evaluation, and it supplies high-quality labels for supervised learning. This
-is important because learned models can then be assessed not only on final-goal
-accuracy but also on how well they match the posterior dynamics of the exact
-observer.
+\subsection{Action-GRU}
+At each timestep, the model receives the grid tensor and the previous action.
+The grid is flattened into a feature vector, the previous action is embedded,
+and the concatenated vector is passed into a GRU. The last hidden state is used
+to predict the final goal, while all hidden states produce posterior logits
+over goals at every step. This is the simplest sequence baseline because it
+asks whether a generic recurrent model can infer goals from observation-action
+history without an explicit spatial encoder.
 
-\section{Dataset Construction}
-\subsection{Trajectory Generation}
-We generate trajectories by sampling a latent goal and then rolling out the
-approximately rational policy for a fixed horizon. Each trajectory includes the
-visited states, chosen actions, and action probabilities along the rollout.
+\subsection{Conv-GRU}
+This model keeps the same recurrent structure and outputs as
+\textit{Action-GRU},
+but changes how each frame is processed. Instead of flattening the grid
+immediately, a convolutional encoder extracts spatial features before they are
+concatenated with the previous-action embedding and passed into the GRU. The
+output is again a final-goal prediction plus posterior logits by timestep. The
+design goal is to preserve local spatial relationships such as walls, free
+space, and goal positions.
 
-\subsection{Observation Encoding}
-Each time step is encoded as a spatial tensor containing the wall map, current
-agent position, goal markers, and a time feature. This representation is chosen
-to support both simple recurrent baselines and convolutional recurrent models.
-
-\subsection{Supervision Targets}
-For each trajectory, we store:
-\begin{itemize}[leftmargin=1.5em]
-  \item the true latent goal;
-  \item the observed action sequence;
-  \item the exact online posterior over goals at every step.
-\end{itemize}
-These targets support both direct goal prediction and imitation-style action
-modeling.
-
-\section{RNN-Based Approximations}
-\subsection{Action-History GRU}
-The first baseline encodes observations and previous actions into a GRU and
-predicts the goal directly. This model provides a simple learned approximation
-with relatively weak spatial inductive bias.
-
-\subsection{Convolutional GRU Classifier}
-The second baseline first applies a convolutional encoder to each gridworld
-frame before the recurrent update. The motivation is to better preserve the
-spatial structure and local invariances of the environment.
-
-\subsection{Goal-Conditioned Policy RNN}
-The third model conditions on a candidate goal and predicts actions over time.
-At test time, the observer can score the observed trajectory under each
-candidate goal and normalize these scores into a posterior distribution. This
-approach is closer in spirit to inverse planning because it models action
-generation rather than predicting the goal in one step.
-
-\section{Experimental Setup}
-\subsection{Training Objectives}
-Direct classifiers are trained to predict the true goal and may optionally be
-regularized to match the exact online posterior. The goal-conditioned policy is
-trained with an action-prediction loss under the true goal.
-
-\subsection{Evaluation Metrics}
-We plan to report final-goal accuracy, posterior divergence from the exact
-observer, and qualitative trajectory-level comparisons. These metrics together
-measure both discrete prediction quality and the fidelity of online inference.
-
-\subsection{Implementation Notes}
-The codebase is organized so the exact inverse-planning pipeline, data
-generation, and learned models are reusable from both scripts and the demo
-notebook. This separation makes it straightforward to replace the exact
-handcrafted planner with a \texttt{memo}-based backend in future work.
+\subsection{Goal-Conditioned Policy}
+This model takes the grid tensor, a candidate goal identity, and the previous
+action as input at each timestep. The grid is encoded spatially, the goal and
+previous action are embedded, and the combined features are passed into a GRU
+that outputs action logits rather than goal logits. At evaluation time, we run
+the model once per candidate goal, score the observed trajectory under each
+goal-conditioned action model, and normalize those scores into a posterior over
+goals. This design is closer to inverse planning because it learns an action
+model that is inverted afterward.
 
 \section{Results}
-This section will present the final quantitative and qualitative results.
+\subsection{Which learned model works best on the main held-out evaluation set?}
+The current results are encouraging. On the held-out evaluation set, trained
+with the largest current budget (4096 training episodes), \textit{Action-GRU}
+reaches final-goal accuracy 0.9678 with mean posterior KL 0.0916,
+\textit{Conv-GRU} reaches 0.9609 accuracy with KL 0.0953, and
+\textit{Goal-Conditioned Policy} reaches 0.9824 accuracy with KL 0.0318.
+Posterior KL is the more relevant metric here because it measures how well a
+model tracks the exact observer over time, not just whether it predicts the
+correct final goal. By that metric, \textit{Goal-Conditioned Policy} is the
+strongest learned approximation so far.
 
-\subsection{Exact Baseline Behavior}
-Planned material:
-\begin{itemize}[leftmargin=1.5em]
-  \item example trajectories under different goals;
-  \item posterior updates over time for representative sequences;
-  \item discussion of the effect of $\beta$ on inference sharpness.
-\end{itemize}
+\subsection{How much training data does each model need?}
+The data-budget study in the notebook shows the same pattern. At 64 training
+episodes, all methods are still far from the exact observer, with mean
+posterior KL between 0.5908 and 0.6510. By 1024 episodes, the
+ \textit{Goal-Conditioned Policy} improves to 0.0478 mean KL, while
+\textit{Action-GRU} and \textit{Conv-GRU} remain at 0.1460 and 0.1685. This
+suggests that modeling action generation conditioned on the candidate goal is a
+more data-efficient way to approximate inverse planning than directly mapping a
+trajectory to a goal label.
 
-\subsection{Comparison with RNN Variants}
-Planned material:
-\begin{itemize}[leftmargin=1.5em]
-  \item a summary table of final-goal accuracy;
-  \item posterior-tracking comparisons against the exact baseline;
-  \item failure cases where learned models diverge from exact inference.
-\end{itemize}
+\subsection{How does agent rationality affect inverse-planning difficulty?}
+The rationality ablation is also informative. When the acting agent is more
+rational ($\beta = 3.0$), \textit{Goal-Conditioned Policy} achieves mean
+posterior KL 0.0226, much better than the direct classifiers. At lower
+rationality ($\beta = 0.75$), all models are closer together, with KL values
+between 0.0627 and 0.0844. This is consistent with the interpretation that
+noisier action sequences contain weaker evidence about the latent goal, so the
+inference problem itself becomes less separable.
+
+\subsection{Do the learned models track the exact posterior on a held-out example?}
+The held-out trajectory comparison is also useful because it shows that all
+three learned models can often identify the correct final goal even when their
+intermediate posterior paths differ. On one held-out sequence in the notebook,
+the exact final posterior is approximately $[0.982, 0.018, 0.000]$, while the
+three learned models all place almost all probability mass on the correct goal
+by the end. This is encouraging for final prediction, but it also reinforces
+why we need the prefix-level KL plots: the interesting question is not just
+whether the model is correct at the end, but whether it reasons in a way that
+tracks the exact observer throughout the trajectory.
 
 \section{Discussion}
-The main advantage of the current project design is that it is methodologically
-clean: the exact model remains simple enough to understand and verify, while
-the learning problem is still nontrivial. The main limitation is that the
-project does not yet solve Bayesian inverse planning in belief space for a true
-POMDP, which is considerably harder.
+The results also surfaced useful negative findings. The conv-GRU has not yet
+outperformed the simpler \textit{Action-GRU}, so adding spatial structure alone
+is not enough in this small environment. In addition, the
+rationality ablation shows that performance depends noticeably on the agent's
+Boltzmann rationality parameter $\beta$, which means we should be careful about
+claiming that one learned model is uniformly best across all behavior regimes.
+Finally, we have not yet implemented Bayesian inverse planning in belief space
+for a true POMDP, and based on the instructor feedback this remains too risky
+to treat as the core deliverable for this semester timeline.
 
-This staged design is still useful. It establishes a solid baseline story and a
-reusable code path for richer future models. In particular, a next step is to
-swap the handcrafted planner for a \texttt{memo}-based or other probabilistic
-planning backend that can better support partial observability and recursive
-reasoning.
+\section{Plan For The Remaining 3 Weeks}
+The final artifact will be the notebook together with the report and
+presentation. The remaining work is organized as a team timeline.
 
-\section{Conclusion}
-This project studies inverse planning in a simple gridworld using an exact
-approximately-rational observer and several RNN-based approximations. The exact
-model provides both a strong baseline and a data source, while the learned
-models test how far direct sequence modeling can approximate Bayesian goal
-inference in a controlled setting.
-
-\bibliographystyle{plain}
-\bibliography{refs}
+\begin{itemize}[leftmargin=1.5em]
+  \item \textbf{Week 10:} Rerun and clean up the exact baseline and RNN
+  experiments with fixed seeds, regenerate the main plots, tighten the
+  analysis of the current notebook results, and begin designing the LLM
+  baseline with spatial prompt representations.
+  \item \textbf{Week 11:} Continue the LLM baseline, focusing on whether LLM
+  reasoning can serve as an approximate inverse-planning method and how it
+  compares with the exact observer and the learned RNN models.
+  \item \textbf{Week 12:} Finalize the notebook, clean up the results and
+  discussion, and prepare the final report and presentation.
+\end{itemize}
 
 \end{document}

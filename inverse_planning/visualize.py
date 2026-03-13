@@ -27,6 +27,27 @@ def _circle(loc: Location, cell_size: int, color: str, radius_scale: float = 0.2
     return f'<circle cx="{cx}" cy="{cy}" r="{r}" fill="{color}" stroke="{stroke}" stroke-width="2" />'
 
 
+def _agent_icon(loc: Location, cell_size: int, color: str = "#111") -> str:
+    x, y = _cell_origin(loc[0], loc[1], cell_size)
+    cx = x + cell_size / 2
+    cy = y + cell_size / 2
+    head_r = cell_size * 0.12
+    body_top = cy - cell_size * 0.02
+    body_bottom = cy + cell_size * 0.18
+    arm_y = cy + cell_size * 0.02
+    leg_y = cy + cell_size * 0.32
+    stroke_w = max(2, cell_size // 16)
+    return (
+        f'<g stroke="{color}" stroke-width="{stroke_w}" stroke-linecap="round" stroke-linejoin="round" fill="none">'
+        f'<circle cx="{cx}" cy="{cy - cell_size * 0.20}" r="{head_r}" fill="#fffdf7" />'
+        f'<line x1="{cx}" y1="{body_top}" x2="{cx}" y2="{body_bottom}" />'
+        f'<line x1="{cx - cell_size * 0.16}" y1="{arm_y}" x2="{cx + cell_size * 0.16}" y2="{arm_y}" />'
+        f'<line x1="{cx}" y1="{body_bottom}" x2="{cx - cell_size * 0.14}" y2="{leg_y}" />'
+        f'<line x1="{cx}" y1="{body_bottom}" x2="{cx + cell_size * 0.14}" y2="{leg_y}" />'
+        "</g>"
+    )
+
+
 def _polyline(points: list[Location], cell_size: int, color: str) -> str:
     if not points:
         return ""
@@ -103,7 +124,8 @@ def render_gridworld_svg(
         for pos in path_points[:-1]:
             parts.append(_circle(pos, cell_size, "#111", radius_scale=0.10))
         current = path_points[-1]
-        parts.append(_circle(current, cell_size, "#111", radius_scale=0.22, stroke="#ffffff"))
+        parts.append(_circle(current, cell_size, "#f4efe4", radius_scale=0.28, stroke="#111"))
+        parts.append(_agent_icon(current, cell_size, color="#111"))
 
     parts.append("</g></svg>")
     return "".join(parts)

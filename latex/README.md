@@ -5,7 +5,14 @@ Files:
 - `main.tex`: starter project report.
 - `refs.bib`: starter bibliography.
 
-Suggested compile flow:
+Compile with the repo's local virtualenv:
+
+```bash
+cd ..
+.venv/bin/inverse-planning-compile-latex
+```
+
+Legacy manual flow if you have a system TeX install:
 
 ```bash
 cd latex

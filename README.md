@@ -23,6 +23,14 @@ Optional training dependencies:
 python3 -m pip install -e .[train]
 ```
 
+Optional LaTeX report tooling:
+
+```bash
+uv pip install --python .venv/bin/python b8tex
+.venv/bin/python -m pip install -e .[latex]
+.venv/bin/inverse-planning-compile-latex
+```
+
 ## Project Idea
 
 The current implementation uses the simple `inv_plan_from_scratch` task as a

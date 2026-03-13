@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 
 from inverse_planning.inference import trajectory_to_observer_labels
+from inverse_planning.memo_backend import MemoPolicyBackend
 from inverse_planning.simulate import sample_trajectory
 from inverse_planning.task import GridworldTask
 
@@ -37,6 +38,7 @@ def collect_dataset(
     n_episodes: int,
     horizon: int,
     seed: int = 0,
+    policy_backend: MemoPolicyBackend | None = None,
 ) -> DatasetBundle:
     rng = np.random.default_rng(seed)
     h, w = task.shape
@@ -51,8 +53,8 @@ def collect_dataset(
     goal_condition_inputs = np.zeros((n_episodes, horizon), dtype=np.int64)
 
     for episode_idx in range(n_episodes):
-        trajectory = sample_trajectory(task, horizon=horizon, rng=rng)
-        labels = trajectory_to_observer_labels(task, trajectory)
+        trajectory = sample_trajectory(task, horizon=horizon, rng=rng, policy_backend=policy_backend)
+        labels = trajectory_to_observer_labels(task, trajectory, policy_backend=policy_backend)
 
         positions[episode_idx] = np.array(trajectory.positions, dtype=np.int64)
         actions[episode_idx] = np.array(trajectory.action_indices, dtype=np.int64)

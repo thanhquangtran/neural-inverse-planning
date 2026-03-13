@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
+from inverse_planning.memo_backend import MemoPolicyBackend
 from inverse_planning.planning import boltzmann_action_probs, env_step
 from inverse_planning.task import Action, GridworldTask, Location
 
@@ -23,6 +24,7 @@ def sample_trajectory(
     horizon: int,
     rng: np.random.Generator,
     goal_index: int | None = None,
+    policy_backend: MemoPolicyBackend | None = None,
 ) -> Trajectory:
     if goal_index is None:
         goal_index = int(rng.integers(task.n_goals))
@@ -35,7 +37,10 @@ def sample_trajectory(
     action_probs: list[np.ndarray] = []
 
     for _ in range(horizon):
-        probs = boltzmann_action_probs(task, loc, goal)
+        if policy_backend is None:
+            probs = boltzmann_action_probs(task, loc, goal)
+        else:
+            probs = policy_backend.action_probs(loc, goal_index)
         action_index = int(rng.choice(task.n_actions, p=probs))
         action = task.actions[action_index]
         loc = env_step(task, loc, action)

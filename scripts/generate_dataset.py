@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 
 from inverse_planning.data import collect_dataset, save_dataset
+from inverse_planning.memo_backend import MemoPolicyBackend
 from inverse_planning.task import make_default_task
 
 
@@ -16,7 +17,15 @@ def main() -> None:
     args = parser.parse_args()
 
     task = make_default_task(beta=args.beta)
-    dataset = collect_dataset(task, n_episodes=args.episodes, horizon=args.horizon, seed=args.seed)
+    memo_backend = MemoPolicyBackend(task)
+    memo_backend.build()
+    dataset = collect_dataset(
+        task,
+        n_episodes=args.episodes,
+        horizon=args.horizon,
+        seed=args.seed,
+        policy_backend=memo_backend,
+    )
     save_dataset(args.output, dataset)
     print(f"saved dataset to {args.output}")
 
