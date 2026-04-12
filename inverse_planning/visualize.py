@@ -74,7 +74,11 @@ def render_gridworld_svg(
     height = h * cell_size
     parts: list[str] = []
 
-    parts.append(f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height + (36 if title else 0)}" viewBox="0 0 {width} {height + (36 if title else 0)}">')
+    svg_height = height + (36 if title else 0)
+    parts.append(
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" '
+        f'height="{svg_height}" viewBox="0 0 {width} {svg_height}">'
+    )
     if title:
         parts.append(
             f'<text x="{width / 2}" y="24" text-anchor="middle" '
@@ -82,7 +86,10 @@ def render_gridworld_svg(
         )
     y_offset = 36 if title else 0
     parts.append(f'<g transform="translate(0,{y_offset})">')
-    parts.append(f'<rect x="0" y="0" width="{width}" height="{height}" fill="#f7f4ea" stroke="#111" stroke-width="2" />')
+    parts.append(
+        f'<rect x="0" y="0" width="{width}" height="{height}" '
+        f'fill="#f7f4ea" stroke="#111" stroke-width="2" />'
+    )
 
     for row in range(h):
         for col in range(w):

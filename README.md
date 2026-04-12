@@ -1,39 +1,94 @@
 # CS6208 Inverse Planning
 
-This repository contains a simple gridworld inverse-planning project built
-around an exact Bayesian baseline and reusable RNN approximations.
+This repository contains a gridworld inverse-planning project built around an
+exact Bayesian observer and neural approximations of that observer.
 
-## Contents
+The main submission artifact is `demo.ipynb`. It walks through the task,
+qualitative exact-inference examples, and three experiment questions:
 
-- `demo.ipynb`: notebook demo with task overview, exact inference, and visuals.
-- `inverse_planning/`: reusable package for task setup, planning, inference, data, models, and visualization.
-- `scripts/`: dataset generation and training entrypoints.
-- `latex/`: starter project report and bibliography.
+1. same-layout generalization to held-out trajectories;
+2. random-layout and random-goal generalization, including a data-scaling check;
+3. rationality ablations under different Boltzmann `beta` values.
 
-## Quick Start
+## Repository layout
 
-```bash
-python3 -m pip install -e .
-python3 scripts/demo_workflow.py
-```
+- `demo.ipynb` — executed tutorial notebook and main experiment report.
+- `inverse_planning/` — task, planning, inference, dataset, model, training, and visualization code.
+- `scripts/` — command-line entrypoints for dataset generation, training, and report compilation.
+- `latex/` — LaTeX report source and bibliography.
+- `artifacts/` — ignored runtime outputs such as datasets and model checkpoints.
 
-Optional training dependencies:
+## Setup
 
-```bash
-python3 -m pip install -e .[train]
-```
-
-Optional LaTeX report tooling:
+The notebook uses optional dependencies for the memoized exact planner,
+training, and notebook execution. From a fresh checkout:
 
 ```bash
-uv pip install --python .venv/bin/python b8tex
-.venv/bin/python -m pip install -e .[latex]
-.venv/bin/inverse-planning-compile-latex
+python3 -m pip install -e '.[memo,train,notebook]'
 ```
 
-## Project Idea
+If you use the project-local virtual environment from this repo, use:
 
-The current implementation uses the simple `inv_plan_from_scratch` task as a
-tractable reference setting. Exact inverse planning provides ground-truth
-posteriors over goals, and RNN variants are trained either to predict goals
-directly or to score actions under candidate goals.
+```bash
+.venv/bin/python -m pip install -e '.[memo,train,notebook]'
+```
+
+## Run the notebook
+
+To execute the notebook in place and keep the outputs in `demo.ipynb`:
+
+```bash
+.venv/bin/python -m jupyter nbconvert \
+  --to notebook \
+  --execute demo.ipynb \
+  --inplace \
+  --ExecutePreprocessor.kernel_name=cs6208-venv \
+  --ExecutePreprocessor.timeout=-1
+```
+
+To write a separate executed copy instead:
+
+```bash
+.venv/bin/python -m jupyter nbconvert \
+  --to notebook \
+  --execute demo.ipynb \
+  --output demo.executed.ipynb \
+  --ExecutePreprocessor.kernel_name=cs6208-venv \
+  --ExecutePreprocessor.timeout=-1
+```
+
+## Command-line utilities
+
+Generate a dataset:
+
+```bash
+inverse-planning-generate-dataset --output artifacts/train.npz --episodes 1024
+```
+
+Train a classifier model:
+
+```bash
+inverse-planning-train-goal-belief-rnn \
+  --dataset artifacts/train.npz \
+  --variant conv_gru \
+  --output artifacts/conv_gru.pt
+```
+
+Train the goal-conditioned policy model:
+
+```bash
+inverse-planning-train-goal-conditioned-policy \
+  --dataset artifacts/train.npz \
+  --output artifacts/goal_conditioned_policy.pt
+```
+
+Run the small smoke-test workflow:
+
+```bash
+inverse-planning-demo
+```
+
+## Notes
+
+Datasets and model checkpoints are intentionally ignored by Git because they
+are generated artifacts. Re-run the notebook or scripts to regenerate them.

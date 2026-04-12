@@ -8,6 +8,7 @@ from torch import nn
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, TensorDataset
 
+
 @dataclass
 class TrainingConfig:
     batch_size: int = 32
