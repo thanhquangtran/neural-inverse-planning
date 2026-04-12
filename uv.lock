@@ -25,20 +25,6 @@ wheels = [
 ]
 
 [[package]]
-name = "b8tex"
-version = "0.2.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "jinja2", marker = "python_full_version >= '3.13'" },
-    { name = "platformdirs", marker = "python_full_version >= '3.13'" },
-    { name = "typing-extensions", marker = "python_full_version >= '3.13'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/38/7a/26ff4d959ba1aad6373e09c970417d1a4e64a54fab1e418534c8d5463481/b8tex-0.2.1.tar.gz", hash = "sha256:5879facba927d22437efaaa1ac680e1dda65dcd4c17f9c58ca3fc5a3d22327a3", size = 184853, upload-time = "2025-11-07T18:35:02.544Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/52/9e/9a71504e791d55d6518059e6d13cc66a4ec8f5366afdc7ec6b543b0fc4e5/b8tex-0.2.1-py3-none-any.whl", hash = "sha256:68fd87417251d3a22396bfce1e4ae3d5daaa0c3ff03bd57327428a9028bec392", size = 97112, upload-time = "2025-11-07T18:35:00.966Z" },
-]
-
-[[package]]
 name = "cffi"
 version = "2.0.0"
 source = { registry = "https://pypi.org/simple" }
@@ -189,7 +175,6 @@ dependencies = [
 
 [package.optional-dependencies]
 dev = [
-    { name = "b8tex", marker = "python_full_version >= '3.13'" },
     { name = "ipykernel" },
     { name = "ipython" },
     { name = "jax" },
@@ -197,9 +182,6 @@ dev = [
     { name = "matplotlib" },
     { name = "memo-lang" },
     { name = "torch" },
-]
-latex = [
-    { name = "b8tex", marker = "python_full_version >= '3.13'" },
 ]
 memo = [
     { name = "jax" },
@@ -217,8 +199,6 @@ train = [
 
 [package.metadata]
 requires-dist = [
-    { name = "b8tex", marker = "python_full_version >= '3.13' and extra == 'dev'", specifier = ">=0.2.1" },
-    { name = "b8tex", marker = "python_full_version >= '3.13' and extra == 'latex'", specifier = ">=0.2.1" },
     { name = "ipykernel", marker = "extra == 'dev'", specifier = ">=6.29" },
     { name = "ipykernel", marker = "extra == 'notebook'", specifier = ">=6.29" },
     { name = "ipython", marker = "extra == 'dev'", specifier = ">=8.18" },
@@ -235,7 +215,7 @@ requires-dist = [
     { name = "torch", marker = "extra == 'dev'", specifier = ">=2.2" },
     { name = "torch", marker = "extra == 'train'", specifier = ">=2.2" },
 ]
-provides-extras = ["train", "memo", "notebook", "latex", "dev"]
+provides-extras = ["train", "memo", "notebook", "dev"]
 
 [[package]]
 name = "cuda-bindings"

@@ -14,8 +14,7 @@ qualitative exact-inference examples, and three experiment questions:
 
 - `demo.ipynb` — executed tutorial notebook and main experiment report.
 - `inverse_planning/` — task, planning, inference, dataset, model, training, and visualization code.
-- `scripts/` — command-line entrypoints for dataset generation, training, and report compilation.
-- `latex/` — LaTeX report source and bibliography.
+- `scripts/` — command-line entrypoints for dataset generation and training.
 - `artifacts/` — ignored runtime outputs such as datasets and model checkpoints.
 
 ## Setup

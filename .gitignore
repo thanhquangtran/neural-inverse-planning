@@ -6,7 +6,8 @@ __pycache__/
 .config/
 *.egg-info/
 artifacts/
-latex/build/
 .omx
 .omc
 .claude
+latex/
+*.pdf

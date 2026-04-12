@@ -39,7 +39,6 @@ inverse-planning-demo = "scripts.demo_workflow:main"
 inverse-planning-generate-dataset = "scripts.generate_dataset:main"
 inverse-planning-train-goal-belief-rnn = "scripts.train_goal_belief_rnn:main"
 inverse-planning-train-goal-conditioned-policy = "scripts.train_goal_conditioned_policy:main"
-inverse-planning-compile-latex = "scripts.compile_latex:main"
 
 [project.optional-dependencies]
 train = [
@@ -55,9 +54,6 @@ notebook = [
   "ipykernel>=6.29",
   "ipython>=8.18",
 ]
-latex = [
-  "b8tex>=0.2.1; python_version >= '3.13'",
-]
 dev = [
   "memo-lang",
   "jax>=0.4",
@@ -66,7 +62,6 @@ dev = [
   "matplotlib>=3.8",
   "ipykernel>=6.29",
   "ipython>=8.18",
-  "b8tex>=0.2.1; python_version >= '3.13'",
 ]
 
 [tool.setuptools]
