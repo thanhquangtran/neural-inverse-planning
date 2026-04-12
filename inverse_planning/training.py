@@ -8,9 +8,6 @@ from torch import nn
 from torch.nn import functional as F
 from torch.utils.data import DataLoader, TensorDataset
 
-from inverse_planning.inference import online_posteriors_from_goal_conditioned_action_probs
-
-
 @dataclass
 class TrainingConfig:
     batch_size: int = 32
@@ -25,9 +22,13 @@ def _prepare_prev_actions(actions: np.ndarray, start_token: int) -> np.ndarray:
     return prev
 
 
-def build_classifier_loader(dataset: np.lib.npyio.NpzFile, batch_size: int) -> DataLoader:
+def build_classifier_loader(
+    dataset: np.lib.npyio.NpzFile,
+    batch_size: int,
+    start_token: int | None = None,
+) -> DataLoader:
     actions = dataset["actions"]
-    start_token = int(actions.max()) + 1
+    start_token = int(actions.max()) + 1 if start_token is None else start_token
     tensors = TensorDataset(
         torch.tensor(dataset["grids"], dtype=torch.float32),
         torch.tensor(_prepare_prev_actions(actions, start_token), dtype=torch.long),
@@ -37,9 +38,13 @@ def build_classifier_loader(dataset: np.lib.npyio.NpzFile, batch_size: int) -> D
     return DataLoader(tensors, batch_size=batch_size, shuffle=True)
 
 
-def build_policy_loader(dataset: np.lib.npyio.NpzFile, batch_size: int) -> DataLoader:
+def build_policy_loader(
+    dataset: np.lib.npyio.NpzFile,
+    batch_size: int,
+    start_token: int | None = None,
+) -> DataLoader:
     actions = dataset["actions"]
-    start_token = int(actions.max()) + 1
+    start_token = int(actions.max()) + 1 if start_token is None else start_token
     tensors = TensorDataset(
         torch.tensor(dataset["grids"], dtype=torch.float32),
         torch.tensor(dataset["goals"], dtype=torch.long),
@@ -99,11 +104,16 @@ def train_policy_model(model: nn.Module, loader: DataLoader, config: TrainingCon
     return losses
 
 
-def evaluate_classifier(model: nn.Module, dataset: np.lib.npyio.NpzFile, device: str = "cpu") -> dict[str, float]:
+def evaluate_classifier(
+    model: nn.Module,
+    dataset: np.lib.npyio.NpzFile,
+    device: str = "cpu",
+    start_token: int | None = None,
+) -> dict[str, float]:
     model = model.to(device)
     model.eval()
     actions = dataset["actions"]
-    start_token = int(actions.max()) + 1
+    start_token = int(actions.max()) + 1 if start_token is None else start_token
     frames = torch.tensor(dataset["grids"], dtype=torch.float32, device=device)
     prev_actions = torch.tensor(_prepare_prev_actions(actions, start_token), dtype=torch.long, device=device)
     goals = np.asarray(dataset["goals"], dtype=np.int64)
@@ -130,50 +140,85 @@ def evaluate_classifier(model: nn.Module, dataset: np.lib.npyio.NpzFile, device:
     }
 
 
-def evaluate_policy_model(model: nn.Module, dataset: np.lib.npyio.NpzFile, device: str = "cpu") -> dict[str, float]:
+def evaluate_policy_model(
+    model: nn.Module,
+    dataset: np.lib.npyio.NpzFile,
+    device: str = "cpu",
+    batch_size: int = 256,
+    start_token: int | None = None,
+) -> dict[str, float]:
     model = model.to(device)
     model.eval()
     actions = np.asarray(dataset["actions"], dtype=np.int64)
     goals = np.asarray(dataset["goals"], dtype=np.int64)
     target_posteriors = np.asarray(dataset["online_posteriors"], dtype=np.float64)
-    goal_ids = np.arange(target_posteriors.shape[-1], dtype=np.int64)
-    start_token = int(actions.max()) + 1
+    n_episodes, horizon = actions.shape
+    n_goals = target_posteriors.shape[-1]
+    start_token = int(actions.max()) + 1 if start_token is None else start_token
     prev_actions = _prepare_prev_actions(actions, start_token)
 
-    final_goal_predictions = np.zeros(len(goals), dtype=np.int64)
-    posterior_kl_values = np.zeros(len(goals), dtype=np.float64)
-    posterior_kl_by_step = np.zeros(actions.shape[1], dtype=np.float64)
+    final_goal_predictions = []
+    posterior_kl_values = []
+    posterior_kl_by_step = np.zeros(horizon, dtype=np.float64)
 
-    for episode_index in range(len(goals)):
-        frames_t = torch.tensor(dataset["grids"][episode_index : episode_index + 1], dtype=torch.float32, device=device)
-        prev_actions_t = torch.tensor(prev_actions[episode_index : episode_index + 1], dtype=torch.long, device=device)
-        per_goal_action_probs = []
+    with torch.no_grad():
+        for start in range(0, n_episodes, batch_size):
+            stop = min(start + batch_size, n_episodes)
+            batch_len = stop - start
 
-        with torch.no_grad():
-            for goal_index in goal_ids:
-                goal_t = torch.tensor([goal_index], dtype=torch.long, device=device)
-                logits = model(frames_t, goal_t, prev_actions_t)
-                probs = torch.softmax(logits, dim=-1)[0].detach().cpu().numpy()
-                per_goal_action_probs.append(probs)
+            frames_t = torch.tensor(dataset["grids"][start:stop], dtype=torch.float32, device=device)
+            prev_actions_t = torch.tensor(prev_actions[start:stop], dtype=torch.long, device=device)
+            actions_t = torch.tensor(actions[start:stop], dtype=torch.long, device=device)
 
-        per_goal_action_probs = np.asarray(per_goal_action_probs, dtype=np.float64)
-        online = online_posteriors_from_goal_conditioned_action_probs(
-            per_goal_action_probs,
-            actions[episode_index],
-        )
-        final_goal_predictions[episode_index] = int(online[-1].argmax())
-        per_step_kl = (
-            target_posteriors[episode_index]
-            * (
-                np.log(np.clip(target_posteriors[episode_index], 1e-12, 1.0))
-                - np.log(np.clip(online, 1e-12, 1.0))
+            # Evaluate every candidate goal in parallel.  Shape convention:
+            #   frames_rep:       (batch * n_goals, horizon, channels, height, width)
+            #   goal_ids_rep:     (batch * n_goals,)
+            #   prev_actions_rep: (batch * n_goals, horizon)
+            frames_rep = (
+                frames_t[:, None]
+                .expand(batch_len, n_goals, *frames_t.shape[1:])
+                .reshape(batch_len * n_goals, *frames_t.shape[1:])
             )
-        ).sum(axis=-1)
-        posterior_kl_values[episode_index] = float(per_step_kl.mean())
-        posterior_kl_by_step += per_step_kl
+            prev_actions_rep = (
+                prev_actions_t[:, None]
+                .expand(batch_len, n_goals, *prev_actions_t.shape[1:])
+                .reshape(batch_len * n_goals, *prev_actions_t.shape[1:])
+            )
+            goal_ids_rep = (
+                torch.arange(n_goals, dtype=torch.long, device=device)
+                .repeat(batch_len)
+            )
+
+            logits = model(frames_rep, goal_ids_rep, prev_actions_rep)
+            action_probs = torch.softmax(logits, dim=-1).reshape(batch_len, n_goals, horizon, -1)
+
+            chosen = action_probs.gather(
+                dim=-1,
+                index=actions_t[:, None, :, None].expand(batch_len, n_goals, horizon, 1),
+            ).squeeze(-1)
+            goal_logps = torch.log(chosen.clamp_min(1e-12)).cumsum(dim=-1) - np.log(n_goals)
+            online = torch.softmax(goal_logps, dim=1).permute(0, 2, 1)
+
+            target_t = torch.tensor(target_posteriors[start:stop], dtype=torch.float64, device=device)
+            online_t = online.to(torch.float64).clamp_min(1e-12)
+            per_step_kl_t = (
+                target_t
+                * (
+                    torch.log(target_t.clamp_min(1e-12))
+                    - torch.log(online_t)
+                )
+            ).sum(dim=-1)
+
+            final_goal_predictions.append(online[:, -1].argmax(dim=-1).detach().cpu().numpy())
+            per_step_kl = per_step_kl_t.detach().cpu().numpy()
+            posterior_kl_values.append(per_step_kl.mean(axis=1))
+            posterior_kl_by_step += per_step_kl.sum(axis=0)
+
+    final_goal_predictions = np.concatenate(final_goal_predictions, axis=0)
+    posterior_kl_values = np.concatenate(posterior_kl_values, axis=0)
 
     return {
         "final_goal_accuracy": float((final_goal_predictions == goals).mean()),
         "posterior_kl": float(posterior_kl_values.mean()),
-        "posterior_kl_by_step": (posterior_kl_by_step / len(goals)).tolist(),
+        "posterior_kl_by_step": (posterior_kl_by_step / n_episodes).tolist(),
     }

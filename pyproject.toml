@@ -7,7 +7,7 @@ name = "cs6208-inverse-planning"
 version = "0.1.0"
 description = "Memo-backed gridworld inverse-planning experiments with exact goal inference, visualization, dataset generation, and RNN baselines."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 license = { text = "MIT" }
 keywords = [
   "inverse-planning",
@@ -58,7 +58,7 @@ notebook = [
   "ipython>=8.18",
 ]
 latex = [
-  "b8tex>=0.2.1",
+  "b8tex>=0.2.1; python_version >= '3.13'",
 ]
 dev = [
   "memo-lang",
@@ -68,7 +68,7 @@ dev = [
   "matplotlib>=3.8",
   "ipykernel>=6.29",
   "ipython>=8.18",
-  "b8tex>=0.2.1",
+  "b8tex>=0.2.1; python_version >= '3.13'",
 ]
 
 [tool.setuptools]
