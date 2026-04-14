@@ -1,63 +1,54 @@
-# CS6208 Inverse Planning
+# Neural Inverse Planning
 
-This repository contains a gridworld inverse-planning project built around an
-exact Bayesian observer and neural approximations of that observer.
+This repository studies **inverse planning in a gridworld**: given an agent's
+observed states and actions, can we infer which goal it is pursuing?
 
-The main submission artifact is `demo.ipynb`. It walks through the task,
-qualitative exact-inference examples, and three experiment questions:
+The project combines:
+- an **exact Bayesian observer** built from a Boltzmann-rational policy,
+- **neural models** trained to approximate that observer, and
+- a **tutorial notebook** that walks through the task, qualitative examples,
+  and the main experiments.
 
-1. same-layout generalization to held-out trajectories;
-2. random-layout and random-goal generalization, including a data-scaling check;
-3. rationality ablations under different Boltzmann `beta` values.
+## Main artifact
 
-## Repository layout
+The main artifact is the notebook currently named `neural_inverse_planning_tutorial.ipynb`.
+It serves as both:
+- a tutorial-style walkthrough of the gridworld inverse-planning setup, and
+- the main experiment report for the project.
 
-- `demo.ipynb` — executed tutorial notebook and main experiment report.
-- `inverse_planning/` — task, planning, inference, dataset, model, training, and visualization code.
-- `scripts/` — command-line entrypoints for dataset generation and training.
-- `artifacts/` — ignored runtime outputs such as datasets and model checkpoints.
+The notebook is organized around three questions:
+1. **Held-out trajectories:** can the models generalize within the same layout?
+2. **Random layouts:** can the models generalize across new goal layouts, and does more data help?
+3. **Rationality ablation:** how does the agent's Boltzmann rationality affect inference difficulty?
+
+## Repository structure
+
+- `neural_inverse_planning_tutorial.ipynb` — tutorial notebook and main experiment walkthrough
+- `inverse_planning/` — task definition, exact inference, simulation, visualization, models, and training code
+- `scripts/` — command-line utilities for dataset generation and training
+- `artifacts/` — generated datasets, checkpoints, and intermediate experiment outputs (gitignored)
+- `latex/` — report and slide materials
 
 ## Setup
 
-The notebook uses optional dependencies for the memoized exact planner,
-training, and notebook execution. From a fresh checkout:
+Install the optional dependencies needed for the exact planner, training, and notebook workflow:
 
 ```bash
 python3 -m pip install -e '.[memo,train,notebook]'
 ```
 
-If you use the project-local virtual environment from this repo, use:
+If you use the project-local virtual environment:
 
 ```bash
 .venv/bin/python -m pip install -e '.[memo,train,notebook]'
 ```
 
-## Run the notebook
+## Using the project
 
-To execute the notebook in place and keep the outputs in `demo.ipynb`:
+### Notebook
+Open `neural_inverse_planning_tutorial.ipynb` in Jupyter and run it as the main walkthrough of the project.
 
-```bash
-.venv/bin/python -m jupyter nbconvert \
-  --to notebook \
-  --execute demo.ipynb \
-  --inplace \
-  --ExecutePreprocessor.kernel_name=cs6208-venv \
-  --ExecutePreprocessor.timeout=-1
-```
-
-To write a separate executed copy instead:
-
-```bash
-.venv/bin/python -m jupyter nbconvert \
-  --to notebook \
-  --execute demo.ipynb \
-  --output demo.executed.ipynb \
-  --ExecutePreprocessor.kernel_name=cs6208-venv \
-  --ExecutePreprocessor.timeout=-1
-```
-
-## Command-line utilities
-
+### Command-line utilities
 Generate a dataset:
 
 ```bash
@@ -89,5 +80,6 @@ inverse-planning-demo
 
 ## Notes
 
-Datasets and model checkpoints are intentionally ignored by Git because they
-are generated artifacts. Re-run the notebook or scripts to regenerate them.
+- The exact observer uses a **Boltzmann-rational policy** and Bayesian goal inference as the reference target.
+- Neural models are trained to approximate that inference process from trajectory data.
+- Datasets and checkpoints are generated artifacts and are intentionally not tracked in Git.
