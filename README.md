@@ -31,13 +31,14 @@ The notebook is organized around three questions:
 
 ## Setup
 
-Install the optional dependencies needed for the exact planner, training, and notebook workflow:
+Create the project virtual environment:
 
 ```bash
-python3 -m pip install -e '.[memo,train,notebook]'
+uv venv .venv --python 3.13 --seed
+source .venv/bin/activate
 ```
 
-If you use the project-local virtual environment:
+Then install the optional dependencies needed for the exact planner, training, and notebook workflow:
 
 ```bash
 .venv/bin/python -m pip install -e '.[memo,train,notebook]'
