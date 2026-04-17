@@ -31,19 +31,23 @@ The notebook is organized around three questions:
 
 ## Setup
 
-Create the project virtual environment:
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/thanhquangtran/neural-inverse-planning.git
+   cd neural-inverse-planning
+   ```
 
-```bash
-uv venv .venv --python 3.13 --seed
-source .venv/bin/activate
-```
-
-Then install the optional dependencies needed for the exact planner, training, and notebook workflow:
-
-```bash
-.venv/bin/python -m pip install -e '.[memo,train,notebook]'
-```
-
+2. **Create a virtual environment:**
+   We recommend using [`uv`](https://docs.astral.sh/uv/):
+   ```bash
+   uv venv .venv --python 3.13 --seed
+   source .venv/bin/activate
+   ```
+3. **Install the project and dependencies:**
+   Install the project in editable mode along with all dependencies needed for the exact planner, training, and notebook workflow:
+   ```bash
+   uv pip install -e '.[dev]'
+   ```
 ## Using the project
 
 ### Notebook
